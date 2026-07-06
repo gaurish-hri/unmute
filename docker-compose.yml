@@ -1,15 +1,18 @@
 # See NOTE comments for places to modify.
 services:
   traefik:
-    image: traefik:v3.3.1
+    image: traefik:v3.6.9
     command:
       # Swarm provider configuration
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
 
       # This is set up for HTTP. If you want HTTPS support for production, use Docker Swarm
       # (check out swarm-deploy.yml) or ask ChatGPT to modify this file for you.
       - "--entrypoints.web.address=:80"
+    environment:
+      - DOCKER_API_VERSION=1.55
     ports:
       - "80:80"
     volumes:
@@ -58,10 +61,11 @@ services:
     build:
       context: services/moshi-server
       dockerfile: public.Dockerfile
-    environment:
-      - HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN
+    # environment:
+    #   - HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN
     volumes:
-      - ./volumes/hf-cache:/root/.cache/huggingface
+      # - ./volumes/hf-cache:/root/.cache/huggingface
+      - ~/.cache/huggingface/:/root/.cache/huggingface/
       - ./volumes/cargo-registry-tts:/root/.cargo/registry
       - ./volumes/tts-target:/app/target
       - ./volumes/uv-cache:/root/.cache/uv
@@ -81,10 +85,11 @@ services:
     build:
       context: services/moshi-server
       dockerfile: public.Dockerfile
-    environment:
-      - HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN
+    # environment:
+    #   - HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN
     volumes:
-      - ./volumes/hf-cache:/root/.cache/huggingface
+      # - ./volumes/hf-cache:/root/.cache/huggingface
+      - ~/.cache/huggingface/:/root/.cache/huggingface/
       - ./volumes/cargo-registry-stt:/root/.cargo/registry
       - ./volumes/stt-target:/app/target
       - ./volumes/uv-cache:/root/.cache/uv
@@ -99,19 +104,21 @@ services:
               capabilities: [gpu]
 
   llm:
-    image: vllm/vllm-openai:v0.11.0
+    image: vllm/vllm-openai:latest
     command:
       [
         # NOTE: Change the LLM here if you want.
         #   You can also use an external LLM provider instead of self-hosting, see README.
-        "--model=google/gemma-3-1b-it",
+        "openai/gpt-oss-20b",
         # NOTE: You can adapt this based on your GPU memory.
         # A higher value takes more memory but supports longer conversations.
         "--max-model-len=1536",
-        "--dtype=bfloat16",
+        "--max-num-seqs=4",
+        # "--dtype=bfloat16",
         # NOTE: Change this based on your GPU memory.
         # A higher value can make inference faster.
-        "--gpu-memory-utilization=0.4",
+        "--gpu-memory-utilization=0.95",
+        "--tensor-parallel-size=1"
       ]
     volumes:
       - ./volumes/hf-cache:/root/.cache/huggingface
@@ -125,6 +132,3 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
-networks:
-  default:
